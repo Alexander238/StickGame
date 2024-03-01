@@ -1,5 +1,8 @@
 extends CharacterBody2D
 
+# ANIMATOR
+@onready var animation = $AnimationPlayer
+
 # BASIC MOVEMENT VARAIABLES ---------------- #
 var face_direction := 1
 var x_dir := 1
@@ -28,6 +31,8 @@ var x_dir := 1
 var jump_coyote_timer : float = 0
 var jump_buffer_timer : float = 0
 var is_jumping := false
+
+var is_attacking := false
 # ----------------------------------- #
 
 
@@ -38,13 +43,15 @@ func get_input() -> Dictionary:
 		"y": int(Input.is_action_pressed("ui_down")) - int(Input.is_action_pressed("ui_up")),
 		"just_jump": Input.is_action_just_pressed("jump") == true,
 		"jump": Input.is_action_pressed("jump") == true,
-		"released_jump": Input.is_action_just_released("jump") == true
+		"released_jump": Input.is_action_just_released("jump") == true,
+		"attack": Input.is_action_pressed("attack") == true
 	}
 
 
 func _physics_process(delta: float) -> void:
 	x_movement(delta)
 	jump_logic(delta)
+	attack_logic(delta)
 	apply_gravity(delta)
 	
 	timers(delta)
@@ -55,13 +62,12 @@ func x_movement(delta: float) -> void:
 	x_dir = get_input()["x"]
 	
 	# Stop if we're not doing movement inputs.
-	if x_dir == 0: 
+	if x_dir == 0 || is_attacking: 
 		velocity.x = Vector2(velocity.x, 0).move_toward(Vector2(0,0), deceleration * delta).x
 		return
 	
 	# If we are doing movement inputs and above max speed, don't accelerate nor decelerate
 	# Except if we are turning
-	# (This keeps our momentum gained from outside or slopes)
 	if abs(velocity.x) >= max_speed and sign(velocity.x) == x_dir:
 		return
 	
@@ -87,6 +93,9 @@ func set_direction(hor_direction) -> void:
 
 func jump_logic(_delta: float) -> void:
 	# Reset our jump requirements
+	if(is_attacking):
+		return
+	
 	if is_on_floor():
 		jump_coyote_timer = jump_coyote
 		is_jumping = false
@@ -107,17 +116,22 @@ func jump_logic(_delta: float) -> void:
 	# We're not actually interested in checking if the player is holding the jump button
 #	if get_input()["jump"]:pass
 	
-	# Cut the velocity if let go of jump. This means our jumpheight is varaiable
-	# This should only happen when moving upwards, as doing this while falling would lead to
-	# The ability to studder our player mid falling
+	# Cut the velocity if let go of jump. 
 	if get_input()["released_jump"] and velocity.y < 0:
 		velocity.y -= (jump_cut * velocity.y)
 	
 	# This way we won't start slowly descending / floating once hit a ceiling
-	# The value added to the treshold is arbritary,
-	# But it solves a problem where jumping into 
 	if is_on_ceiling(): velocity.y = jump_hang_treshold + 100.0
 
+func attack_logic(_delta: float) -> void:
+	if get_input()["attack"] && !is_jumping:
+		animation.play("StickSmash1")
+		is_attacking = true
+		animation.connect("animation_finished", _on_animation_finished)
+
+func _on_animation_finished(animation_name: String) -> void:
+	if animation_name == "StickSmash1":
+		is_attacking = false;
 
 func apply_gravity(delta: float) -> void:
 	var applied_gravity : float = 0
